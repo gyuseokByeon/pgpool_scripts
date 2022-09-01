@@ -1,0 +1,37 @@
+#!/bin/bash
+# This script is run after recovery_1st_stage to start Standby node.
+
+set -o xtrace
+
+DEST_NODE_HOST="$1"
+DEST_NODE_PGDATA="$2"
+
+PGHOME=/usr/pgsql-13
+LOG=/data/pgpool/log/recovery_$(date +%Y-%m-%d).log
+
+echo [ $(date +%Y-%m-%d) $(date +%H:%M:%S) ] pgpool_remote_start: start: remote start Standby node $DEST_NODE_HOST >> $LOG
+
+## Test passwordless SSH
+echo [ $(date +%Y-%m-%d) $(date +%H:%M:%S) ] pgpool_remote_start: test passwordless ssh .. >> $LOG
+ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null postgres@${DEST_NODE_HOST} -i ~/.ssh/id_rsa_pgpool ls /tmp > /dev/null
+
+if [ $? -ne 0 ]; then
+    echo [ $(date +%Y-%m-%d) $(date +%H:%M:%S) ] ERROR: pgpool_remote_start: passwordless SSH to postgres@${DEST_NODE_HOST} failed. Please setup passwordless SSH. >> $LOG
+    exit 1
+fi
+
+## Start Standby node
+echo [ $(date +%Y-%m-%d) $(date +%H:%M:%S) ] pgpool_remote_start: $DEST_NODE_HOST PostgreSQL start by systemctl .. >> $LOG
+# ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null postgres@$DEST_NODE_HOST -i ~/.ssh/id_rsa_pgpool "
+#     $PGHOME/bin/pg_ctl -l /dev/null -w -D $DEST_NODE_PGDATA startpcp_recovery_node
+# "
+ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    postgres@$DEST_NODE_HOST -i ~/.ssh/id_rsa_pgpool "sudo systemctl start postgresql-13"
+
+if [ $? -ne 0 ]; then
+    echo [ $(date +%Y-%m-%d) $(date +%H:%M:%S) ] ERROR: pgpool_remote_start: $DEST_NODE_HOST PostgreSQL start failed. >> $LOG
+    exit 1
+fi
+
+echo [ $(date +%Y-%m-%d) $(date +%H:%M:%S) ] pgpool_remote_start: end: PostgreSQL on $DEST_NODE_HOST is started successfully. >> $LOG
+exit 0
